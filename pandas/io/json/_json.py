@@ -169,6 +169,12 @@ def to_json(
     if lines and orient != "records":
         raise ValueError("'lines' keyword only valid when 'orient' is records")
 
+    if lines and indent:
+        # Pretty-printed records are multi-line; convert_to_line_delimits cannot
+        # emit valid NDJSON from indented array output, and read_json(lines=True)
+        # cannot parse the result.
+        raise ValueError("indent is not supported when lines=True")
+
     if mode not in ["a", "w"]:
         msg = (
             f"mode={mode} is not a valid option."
