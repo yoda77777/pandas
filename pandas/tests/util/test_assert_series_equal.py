@@ -543,3 +543,16 @@ def test_assert_series_equal_int_near_bounds():
     msg = "Series are different"
     with pytest.raises(AssertionError, match=msg):
         tm.assert_series_equal(ser1, ser2)
+
+
+def test_assert_series_equal_ndarray_subclass_check_series_type_false():
+    # GH#65770
+    class OtherArray(np.ndarray):
+        pass
+
+    arr = np.array([1])
+    left = pd.Series(arr)
+    right = pd.Series(arr.view(OtherArray))
+
+    assert left.equals(right)
+    tm.assert_series_equal(left, right, check_series_type=False)
