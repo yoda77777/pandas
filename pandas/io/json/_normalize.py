@@ -488,6 +488,8 @@ def json_normalize(
     Meta fields are prefixed with the given string.
     """
     _validate_meta(meta)
+    if errors not in ("raise", "ignore"):
+        raise ValueError(f"errors must be 'raise' or 'ignore', got {errors!r}")
 
     def _pull_field(
         js: dict[str, Any], spec: list | str, extract_record: bool = False

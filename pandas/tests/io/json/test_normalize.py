@@ -940,3 +940,14 @@ class TestNestedToRecord:
 
         with pytest.raises(TypeError, match="must be strings"):
             json_normalize(data, record_path=["nested"], meta=[12])
+
+    def test_json_normalize_errors_validation(self):
+        data = [{"a": 1, "nested": [{"b": 2}]}]
+        with pytest.raises(ValueError, match="errors must be 'raise' or 'ignore'"):
+            json_normalize(data, record_path="nested", meta=["a"], errors="foo")
+        # valid values still work
+        result = json_normalize(
+            data, record_path="nested", meta=["a"], errors="raise"
+        )
+        expected = DataFrame({"b": [2], "a": [1]})
+        tm.assert_frame_equal(result, expected, check_dtype=False)
