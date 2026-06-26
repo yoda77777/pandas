@@ -2106,6 +2106,15 @@ class TestPandasContainer:
         with pytest.raises(ValueError, match="must be a nonnegative integer"):
             DataFrame().to_json(indent=-1)
 
+    def test_json_indent_with_lines_raises(self):
+        # indent produces multi-line records; not valid NDJSON for lines=True
+        df = DataFrame({"a": [1, 2]})
+        with pytest.raises(ValueError, match="indent is not supported when lines=True"):
+            df.to_json(orient="records", lines=True, indent=2)
+        # indent=0 / None remain allowed with lines
+        df.to_json(orient="records", lines=True, indent=0)
+        df.to_json(orient="records", lines=True)
+
     def test_emca_262_nan_inf_support(self):
         # GH 12213
         data = StringIO(
