@@ -6,6 +6,7 @@ import pytest
 import pandas as pd
 from pandas import (
     DataFrame,
+    MultiIndex,
     Index,
     date_range,
     lreshape,
