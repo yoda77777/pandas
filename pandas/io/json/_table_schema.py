@@ -9,7 +9,6 @@ from __future__ import annotations
 from typing import (
     TYPE_CHECKING,
     Any,
-    cast,
 )
 import warnings
 
@@ -34,7 +33,10 @@ from pandas.core.dtypes.dtypes import (
     PeriodDtype,
 )
 
-from pandas import DataFrame
+from pandas import (
+    DataFrame,
+    MultiIndex,
+)
 import pandas.core.common as com
 
 from pandas.tseries.frequencies import to_offset
@@ -46,7 +48,6 @@ if TYPE_CHECKING:
     )
 
     from pandas import Series
-    from pandas.core.indexes.multi import MultiIndex
 
 
 TABLE_SCHEMA_VERSION = "1.4.0"
@@ -100,14 +101,22 @@ def as_json_table_type(x: DtypeObj) -> str:
 
 def set_default_names(data):
     """Sets index names to 'index' for regular, or 'level_x' for Multi"""
+    # Use MultiIndex specifically: a 1-level MultiIndex has nlevels == 1 but
+    # .name is always None while .names holds the real level names. Treating it
+    # like a plain Index makes schema field names diverge from reset_index()
+    # column names and breaks orient='table' round-trips.
+    is_multi = isinstance(data.index, MultiIndex)
+
     if com.all_not_none(*data.index.names):
         nms = data.index.names
-        if len(nms) == 1 and data.index.name == "index":
+        if not is_multi and data.index.name == "index":
             warnings.warn(
                 "Index name of 'index' is not round-trippable.",
                 stacklevel=find_stack_level(),
             )
-        elif len(nms) > 1 and any(x.startswith("level_") for x in nms):
+        elif is_multi and any(
+            isinstance(x, str) and x.startswith("level_") for x in nms
+        ):
             warnings.warn(
                 "Index names beginning with 'level_' are not round-trippable.",
                 stacklevel=find_stack_level(),
@@ -115,7 +124,7 @@ def set_default_names(data):
         return data
 
     data = data.copy(deep=False)
-    if data.index.nlevels > 1:
+    if is_multi:
         data.index.names = com.fill_missing_names(data.index.names)
     else:
         data.index.name = data.index.name or "index"
@@ -306,8 +315,7 @@ def build_table_schema(
     fields = []
 
     if index:
-        if data.index.nlevels > 1:
-            data.index = cast("MultiIndex", data.index)
+        if isinstance(data.index, MultiIndex):
             for level, name in zip(data.index.levels, data.index.names, strict=True):
                 new_field = convert_pandas_type_to_json_field(level)
                 new_field["name"] = name
@@ -323,10 +331,10 @@ def build_table_schema(
 
     schema["fields"] = fields
     if index and data.index.is_unique and primary_key is None:
-        if data.index.nlevels == 1:
-            schema["primaryKey"] = [data.index.name]
+        if isinstance(data.index, MultiIndex):
+            schema["primaryKey"] = list(data.index.names)
         else:
-            schema["primaryKey"] = data.index.names
+            schema["primaryKey"] = [data.index.name]
     elif primary_key is not None:
         schema["primaryKey"] = primary_key
 
