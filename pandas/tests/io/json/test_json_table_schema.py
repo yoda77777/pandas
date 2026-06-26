@@ -677,6 +677,32 @@ class TestTableOrient:
         result = [x["name"] for x in build_table_schema(df)["fields"]]
         assert result == ["level_0", "level_1", 0, 1, 2, 3]
 
+    def test_single_level_multiindex_schema_field_names(self):
+        # 1-level MultiIndex must use .names, not .name (always None on MI)
+        df = DataFrame(
+            {"a": [1, 2]},
+            index=pd.MultiIndex.from_tuples([(10,), (20,)], names=["idx"]),
+        )
+        schema = build_table_schema(df)
+        assert [f["name"] for f in schema["fields"]] == ["idx", "a"]
+        assert schema["primaryKey"] == ["idx"]
+
+        df_unnamed = DataFrame(
+            {"a": [1, 2]},
+            index=pd.MultiIndex.from_tuples([(10,), (20,)]),
+        )
+        schema_unnamed = build_table_schema(df_unnamed)
+        assert [f["name"] for f in schema_unnamed["fields"]] == ["level_0", "a"]
+        assert schema_unnamed["primaryKey"] == ["level_0"]
+
+    def test_single_level_multiindex_warns_level_prefix(self):
+        df = DataFrame(
+            {"a": [1]},
+            index=pd.MultiIndex.from_tuples([(0,)], names=["level_0"]),
+        )
+        with tm.assert_produces_warning(UserWarning, match="not round-trippable"):
+            set_default_names(df)
+
 
 class TestTableOrientReader:
     @pytest.mark.parametrize(
@@ -715,6 +741,34 @@ class TestTableOrientReader:
         out = StringIO(df.to_json(orient="table"))
         result = pd.read_json(out, orient="table")
         tm.assert_frame_equal(df, result)
+
+    @pytest.mark.parametrize(
+        "names,expected_name,warn",
+        [
+            # Default MI names are filled as level_0 on write; single-level read
+            # yields a plain Index that keeps that written name.
+            (None, "level_0", None),
+            (["idx"], "idx", None),
+            (["level_0"], "level_0", UserWarning),
+        ],
+    )
+    def test_read_json_table_single_level_multiindex(
+        self, names, expected_name, warn
+    ):
+        # 1-level MultiIndex previously wrote schema field "values"/primaryKey
+        # None (via Index.name) while data used reset_index level names.
+        index = pd.MultiIndex.from_tuples([(0,), (1,), (2,), (3,)], names=names)
+        df = DataFrame({"ints": [1, 2, 3, 4]}, index=index)
+        with tm.assert_produces_warning(warn, match="not round-trippable"):
+            out = StringIO(df.to_json(orient="table"))
+        result = pd.read_json(out, orient="table")
+        # orient='table' cannot preserve MultiIndex-ness for a single level;
+        # values and the effective index labels must still round-trip.
+        expected = DataFrame(
+            {"ints": [1, 2, 3, 4]},
+            index=pd.Index([0, 1, 2, 3], name=expected_name),
+        )
+        tm.assert_frame_equal(result, expected)
 
     @pytest.mark.parametrize(
         "index_nm",
