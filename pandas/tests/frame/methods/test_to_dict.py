@@ -539,3 +539,16 @@ def test_to_dict_list_pd_scalars(val):
     result = df.to_dict(orient="list")
     expected = {"a": [val]}
     assert result == expected
+
+
+class TestToDictIntoNested:
+    def test_to_dict_index_into_nested(self):
+        # GH#65778 into= should apply to nested row mappings for orient="index"
+        class MyDict(dict):
+            pass
+
+        df = DataFrame({"A": [1, 2], "B": ["x", "y"]})
+        out = df.to_dict(orient="index", into=MyDict)
+        assert isinstance(out, MyDict)
+        assert isinstance(out[0], MyDict)
+        assert out[0] == MyDict({"A": 1, "B": "x"})
