@@ -240,6 +240,19 @@ def melt(
     else:
         var_name = [var_name]
 
+    # GH#65654 - reject output name collisions that would overwrite id_vars data
+    if len(var_name) != len(set(var_name)):
+        raise ValueError("var_name contains duplicate column names.")
+    for name in var_name:
+        if name in id_vars:
+            raise ValueError(
+                f"var_name ({name!r}) cannot match an element in the id_vars."
+            )
+        if name == value_name:
+            raise ValueError(
+                f"var_name ({name!r}) cannot match value_name ({value_name!r})."
+            )
+
     num_rows, K = frame.shape
     num_cols_adjusted = K - len(id_vars)
 

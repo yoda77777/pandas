@@ -1278,3 +1278,29 @@ def test_wide_to_long_string_columns(string_storage):
         ),
     )
     tm.assert_frame_equal(result, expected)
+
+
+def test_melt_var_name_collision_with_id_vars():
+    # GH#65654
+    df = DataFrame({"id": [1, 2], "a": [10, 20], "b": [100, 200]})
+    msg = r"var_name \('id'\) cannot match an element in the id_vars"
+    with pytest.raises(ValueError, match=msg):
+        df.melt(id_vars="id", var_name="id")
+
+
+def test_melt_var_name_collision_with_value_name():
+    # GH#65654
+    df = DataFrame({"a": [1], "b": [2]})
+    msg = r"var_name \('value'\) cannot match value_name \('value'\)"
+    with pytest.raises(ValueError, match=msg):
+        df.melt(var_name="value", value_name="value")
+
+
+def test_melt_var_name_duplicate_entries():
+    # GH#65654 MultiIndex columns with duplicate var_name entries
+    df = DataFrame(
+        [[1, 2], [3, 4]],
+        columns=MultiIndex.from_tuples([("A", "x"), ("A", "y")]),
+    )
+    with pytest.raises(ValueError, match="var_name contains duplicate column names"):
+        df.melt(var_name=["v", "v"])
